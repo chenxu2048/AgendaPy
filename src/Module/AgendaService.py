@@ -14,7 +14,7 @@ class AgendaService(object):
     def database(self, db):
         if isinstance(db, torndb.Connection):
             self.__db = db
-    def LogIn(self, userinfo):
+    def logIn(self, **userinfo):
         #userinfo 是一个字典，键值为
         #'username' => 用户名(str)
         #'password' => 密码(str)
@@ -23,7 +23,7 @@ class AgendaService(object):
             return True
         else:
             return False
-    def deleteUser(self, userinfo):
+    def deleteUser(self, **userinfo):
         #需要提供用户密码才能删除
         db = self.__db
         db.execute('LOCK TABLE user READ, meeting READ, meetingMember READ')
@@ -39,7 +39,7 @@ class AgendaService(object):
             status = False
         db.execute('UNLOCK TABLE')
         return status
-    def userRegister(self, userinfo):
+    def userRegister(self, **userinfo):
         #userinfo 是注册用户信息表
         #'username' => 用户名
         #'password' => 密码md5
