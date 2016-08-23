@@ -107,16 +107,18 @@ class AgendaService(object):
     def updateUser(self, prevUsername, prevPassword, **kwparam):
         store = self.__db.query('SELECT userId FROM user WHERE username = %s AND password = %s', prevUsername, prevPassword)
         if store and kwparam:
+            count = 0
             sql = 'UPDATE user SET '
             for item in kwparam.items():
                 if item[1]:
+                    count += 1
                     sql += item[0] + "='" + item[1].replace("'", "\\'") + "', "
             sql = sql[0:len(sql)-2] + 'WHERE username = %s'
-            #print sql
-            self.__db.execute(sql, prevUsername)
-            return True
-        else:
-            return False
+            print sql
+            if count:
+                self.__db.execute(sql, prevUsername)
+                return True
+        return False
     def queryMeeting(self, username, **kwparam):
         store = self.__db.query('SELECT userId FROM user WHERE username = %s', username)
         if not store:
@@ -143,8 +145,9 @@ class AgendaService(object):
         allConflictMeeting = self.__db.query('SELECT meetingMember.userId as userId FROM meeting INNER JOIN meetingMember ON meeting.meetingId = meetingMember.meetingId WHERE startDate < %s and endDate > %s', kwparam['endDate'], kwparam['startDate'])
         userId = self.__db.query('SELECT userId FROM user WHERE username = %s', kwparam['sponsor'])
         if (not userId) or userId[0] in allConflictMeeting:
+            #print allConflictMeeting
             self.__db.execute("UNLOCK TABLE")
-            #print 'c'
+            #print 'c', userId
             return False
         participatorsId = []
         for part in kwparam['participators']:
@@ -158,7 +161,7 @@ class AgendaService(object):
         for i in participatorsId:
             if i in allConflictMeeting:
                 self.__db.execute('UNLOCK TABLE')
-                #print 'd'
+                #print 'e'
                 return False
         self.__db.execute('LOCK TABLE user WRITE, meeting WRITE, meetingMember WRITE')
         self.__db.insert('INSERT meeting(title, startDate, endDate) VALUE(%s, %s, %s)', kwparam['title'], kwparam['startDate'], kwparam['endDate'])
@@ -171,10 +174,15 @@ class AgendaService(object):
         self.__db.execute('UNLOCK TABLE')
         return True
     def queryUser(self, **userinfo):
+        count = 0
         sql = 'SELECT username, email, phone FROM user WHERE '
         for item in userinfo.items():
             if item[1]:
-                sql += item[0] + "='" + item[1].replace("'", "\\'") + "' AND "
-        sql = sql[0:len(sql) - 4]
-        print sql
-        return self.__db.query(sql)
+                count += 1
+                sql += item[0] + "='" + item[1].replace("'", "\\\'") + "' AND "
+        if count:
+            sql = sql[0:len(sql) - 4]
+            #print sql
+            return self.__db.query(sql)
+        else:
+            return []
