@@ -114,7 +114,7 @@ class AgendaService(object):
                     count += 1
                     sql += item[0] + "='" + item[1].replace("'", "\\'") + "', "
             sql = sql[0:len(sql)-2] + 'WHERE username = %s'
-            print sql
+            #print sql
             if count:
                 self.__db.execute(sql, prevUsername)
                 return True
