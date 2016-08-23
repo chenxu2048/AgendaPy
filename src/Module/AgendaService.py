@@ -116,14 +116,14 @@ class AgendaService(object):
         else:
             return False
     def queryMeeting(self, username, **kwparam):
-        store = self.__db.query('SELECT userID FROM user WHERE username = %s', username)
+        store = self.__db.query('SELECT userId FROM user WHERE username = %s', username)
         if not store:
             return []
-        userId = store[0]['useId']
+        userId = store[0]['userId']
         if 'title' in kwparam:
             store = self.__db.query("SELECT startDate, endDate, title FROM meeting INNER JOIN meetingMember ON meeting.meetingId meetingMember.meetingId WHERE title = %s and meetingMember.userId = %s", kwparam['title'], userId)
         elif 'startDate' in kwparam and 'endDate' in kwparam:
-            store = self.__db.query("SELECT startDate, endDate, title FROM meeting INNER JOIN meetingMember ON meeting.meetingId meetingMember.meetingId WHERE meeting.startDate <= %s AND meeting.endDate >= %s AND meetingMember.userId = %s", endDate, startDate, userId)
+            store = self.__db.query("SELECT startDate, endDate, title FROM meeting INNER JOIN meetingMember ON meeting.meetingId meetingMember.meetingId WHERE meeting.startDate <= %s AND meeting.endDate >= %s AND meetingMember.userId = %s", kwparam['endDate'], kwparam['startDate'], userId)
         else:
             return []
         for meet in store:
@@ -166,3 +166,4 @@ class AgendaService(object):
             self.__db.insert('INSERT meetingMember(userId, meetingId) VALUE(%s, %s)', i['userId'], meetingId['metingId'])
         self.__db.execute('UNLOCK TABLE')
         return True
+    def queryUser(self, username)
