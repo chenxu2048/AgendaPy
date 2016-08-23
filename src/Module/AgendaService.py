@@ -104,14 +104,16 @@ class AgendaService(object):
         for meet in meeting:
             self.__db.execute("DELETE FROM meeting WHERE meetingId = %s", meet['meetingId'])
 
-    def updateUser(self, username, password, **kwparam):
-        store = self.__db.query('SELECT userId FROM user WHERE username = %s AND password = %s', username, password)
+    def updateUser(self, prevUsername, prevPassword, **kwparam):
+        store = self.__db.query('SELECT userId FROM user WHERE username = %s AND password = %s', prevUsername, prevPassword)
         if store and kwparam:
             sql = 'UPDATE user SET '
             for item in kwparam.items():
-                sql += item[0] + "='" + item[1] + "' "
-            sql += 'WHERE username = %s'
-            self.__db.execute(sql, username)
+                if item[1]:
+                    sql += item[0] + "='" + item[1].replace("'", "\\'") + "', "
+            sql = sql[0:len(sql)-2] + 'WHERE username = %s'
+            #print sql
+            self.__db.execute(sql, prevUsername)
             return True
         else:
             return False
@@ -121,9 +123,9 @@ class AgendaService(object):
             return []
         userId = store[0]['userId']
         if 'title' in kwparam:
-            store = self.__db.query("SELECT startDate, endDate, title FROM meeting INNER JOIN meetingMember ON meeting.meetingId meetingMember.meetingId WHERE title = %s and meetingMember.userId = %s", kwparam['title'], userId)
+            store = self.__db.query("SELECT startDate, endDate, title FROM meeting INNER JOIN meetingMember ON meeting.meetingId = meetingMember.meetingId WHERE title = %s and meetingMember.userId = %s", kwparam['title'], userId)
         elif 'startDate' in kwparam and 'endDate' in kwparam:
-            store = self.__db.query("SELECT startDate, endDate, title FROM meeting INNER JOIN meetingMember ON meeting.meetingId meetingMember.meetingId WHERE meeting.startDate <= %s AND meeting.endDate >= %s AND meetingMember.userId = %s", kwparam['endDate'], kwparam['startDate'], userId)
+            store = self.__db.query("SELECT startDate, endDate, title FROM meeting INNER JOIN meetingMember ON meeting.meetingId = meetingMember.meetingId WHERE meeting.startDate <= %s AND meeting.endDate >= %s AND meetingMember.userId = %s", kwparam['endDate'], kwparam['startDate'], userId)
         else:
             return []
         for meet in store:
@@ -131,39 +133,48 @@ class AgendaService(object):
             meet['endDate'] = str(meet['endDate'])
         return store
     def createMeeting(self, **kwparam):
-        try:
-            startDate = datetime.datetime.strptime(kwparam['startDate'], "%Y-%m-%d %H:%M:%S")
-            endDate = datetime.datetime.strptime(kwparam['endDate'], "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            return False
         if self.__db.query('SELECT meetingId FROM meeting WHERE title = %s', kwparam['title']):
+            #print 'a'
             return False
-        if startDate < endDate or kwparam['participators'] or len(kwparam['participators']) != len(set(kwparam['participators'])) or kwparam['sponsor'] in kwparam['participators']:
+        if kwparam['startDate'] >= kwparam['endDate'] or not kwparam['participators'] or len(kwparam['participators']) != len(set(kwparam['participators'])) or kwparam['sponsor'] in kwparam['participators']:
+            #print 'b'
             return False
         self.__db.execute("LOCK TABLE user READ, meeting READ, meetingMember READ")
-        allConflictMeeting = self.__db.query('SELECT meetingMember.userId as userId FROM meeting INNER JOIN meetingMember ON meeting.meetingId = meetingMember.meetingId WHERE startDate < %s and endDate > %s', endDate, startDate)
+        allConflictMeeting = self.__db.query('SELECT meetingMember.userId as userId FROM meeting INNER JOIN meetingMember ON meeting.meetingId = meetingMember.meetingId WHERE startDate < %s and endDate > %s', kwparam['endDate'], kwparam['startDate'])
         userId = self.__db.query('SELECT userId FROM user WHERE username = %s', kwparam['sponsor'])
         if (not userId) or userId[0] in allConflictMeeting:
             self.__db.execute("UNLOCK TABLE")
+            #print 'c'
             return False
         participatorsId = []
         for part in kwparam['participators']:
             partId = self.__db.query('SELECT userId FROM user WHERE username = %s', part)
             if not partId:
                 self.__db.execute("UNLOCK TABLE")
+                #print 'd'
                 return False
             else:
                 participatorsId.append(partId[0])
         for i in participatorsId:
             if i in allConflictMeeting:
                 self.__db.execute('UNLOCK TABLE')
+                #print 'd'
                 return False
         self.__db.execute('LOCK TABLE user WRITE, meeting WRITE, meetingMember WRITE')
-        self.__db.insert('INSERT meeting(title, startDate, endDate) VALUE(%s, %s, %s)', kwparam['title'], startDate, endDate)
+        self.__db.insert('INSERT meeting(title, startDate, endDate) VALUE(%s, %s, %s)', kwparam['title'], kwparam['startDate'], kwparam['endDate'])
         meetingId = self.__db.query('SELECT meetingId FROM meeting WHERE title = %s', kwparam['title'])[0]['meetingId']
-        self.__db.insert('INSERT meetingMember(userId, meetingId, role) VALUE(%s, %s, "sponsor")', userId['userId'], meetingId['meetingId'])
+        #print userId, meetingId
+        self.__db.insert('INSERT meetingMember(userId, meetingId, role) VALUE(%s, %s, "sponsor")', userId[0]['userId'], meetingId)
         for i in participatorsId:
-            self.__db.insert('INSERT meetingMember(userId, meetingId) VALUE(%s, %s)', i['userId'], meetingId['metingId'])
+            #print participatorsId
+            self.__db.insert('INSERT meetingMember(userId, meetingId) VALUE(%s, %s)', i['userId'], meetingId)
         self.__db.execute('UNLOCK TABLE')
         return True
-    def queryUser(self, username)
+    def queryUser(self, **userinfo):
+        sql = 'SELECT username, email, phone FROM user WHERE '
+        for item in userinfo.items():
+            if item[1]:
+                sql += item[0] + "='" + item[1].replace("'", "\\'") + "' AND "
+        sql = sql[0:len(sql) - 4]
+        print sql
+        return self.__db.query(sql)
